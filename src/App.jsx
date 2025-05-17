@@ -32,12 +32,30 @@ function App() {
           const tolerance = 50;
           const nextP_bh = arr[i + 1]?.P_bh || row.P_bh;
           let action = "Mantener apertura";
-
+          let reason = "";
+        
           if (row.Circulating === "No") {
             action = "Flujo detenido";
-          } else if (Math.abs(nextP_bh - row.P_bh) > tolerance) {
-            action = nextP_bh > row.P_bh ? "Reducir apertura" : "Incrementar apertura";
+            reason = "No hay circulación, se detiene el flujo.";
+          } else {
+            const delta = nextP_bh - row.P_bh;
+            if (Math.abs(delta) > tolerance) {
+              action = delta > 0 ? "Reducir apertura" : "Incrementar apertura";
+              reason = `P_bh cambia de ${row.P_bh} a ${nextP_bh} psi (Δ=${delta.toFixed(1)} > tolerancia de ${tolerance}). Se decide ${action.toLowerCase()}.`;
+            } else {
+              reason = `P_bh cambia de ${row.P_bh} a ${nextP_bh} psi (Δ=${delta.toFixed(1)} ≤ tolerancia). Se mantiene apertura.`;
+            }
           }
+        
+          // Simular efecto en apertura del choke
+          if (action === "Reducir apertura") choke = Math.max(0, choke - 5);
+          else if (action === "Incrementar apertura") choke = Math.min(100, choke + 5);
+        
+          enriched.push({ ...row, index: i, decision: action, justification: reason });
+          chokeStates.push({ index: i, choke });
+        });
+        
+        
 
           // Simular efecto en apertura del choke
           if (action === "Reducir apertura") choke = Math.max(0, choke - 5);
@@ -48,7 +66,14 @@ function App() {
         });
 
         setData(enriched);
-        setDecisions(enriched.map(({ index, decision }) => ({ index, decision })));
+        setDecisions(
+          enriched.map(({ index, decision, justification }) => ({
+            index,
+            decision,
+            justification
+          }))
+        );
+        
         setChokeData(chokeStates);
       },
     });
@@ -122,12 +147,13 @@ function App() {
 
       <h2>Justificación de decisiones</h2>
       <ul>
-        {decisions.map(({ index, decision }) => (
-          <li key={index}>
-            Paso {index}: {decision}
-          </li>
-        ))}
-      </ul>
+  {decisions.map(({ index, decision, justification }) => (
+    <li key={index}>
+      <strong>Paso {index}:</strong> {decision} — <em>{justification}</em>
+    </li>
+  ))}
+</ul>
+
 
       <button onClick={downloadCSV} style={{ marginTop: "1rem", padding: "0.5rem 1rem" }}>
         Descargar decisiones como CSV
